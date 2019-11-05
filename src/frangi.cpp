@@ -1,8 +1,10 @@
-#include "frangi.h"
 #include <iostream>
-#include <fstream>
+
+#include "frangi.h"
+
 using namespace std;
 using namespace cv;
+
 
 void frangi2d_hessian(const Mat &src, Mat &Dxx, Mat &Dxy, Mat &Dyy, float sigma){
 	//construct Hessian kernels
