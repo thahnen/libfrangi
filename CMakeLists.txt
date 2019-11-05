@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.14)
 project(libfrangi
         VERSION         1.0.0
-        DESCRIPTION     ""
-        HOMEPAGE_URL    ""
+        DESCRIPTION     "Implementation of a standard vesselness filter"
+        HOMEPAGE_URL    "https://github.com/thahnen/libfrangi"
         LANGUAGES       CXX)
 
 set(CMAKE_BUILD_TYPE Release)
@@ -12,7 +12,32 @@ find_package(OpenMP REQUIRED)
 # OpenCV required for image processing
 find_package(OpenCV REQUIRED)
 
-include_directories(./include)
+include_directories(${PROJECT_SOURCE_DIR}/include)
+
+
+########################################################################################################################
+#
+#       SHARED LIBRARY
+#
+########################################################################################################################
+add_library(${PROJECT_NAME}
+        SHARED
+            include/frangi.h
+            src/frangi.cpp)
+
+set_target_properties(${PROJECT_NAME}
+        PROPERTIES
+            VERSION ${PROJECT_VERSION}
+            CXX_VISIBILITY_PRESET hidden
+            PUBLIC_HEADER include/frangi.h)
+
+target_include_directories(${PROJECT_NAME}
+        PUBLIC
+            ${PROJECT_SOURCE_DIR}/include)
+
+target_link_libraries(${PROJECT_NAME}
+        OpenMP::OpenMP_CXX
+        ${OpenCV_LIBS})
 
 #compile
 add_library(frangi SHARED src/frangi.cpp)

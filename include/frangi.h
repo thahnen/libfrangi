@@ -14,14 +14,9 @@ typedef struct{
 	int sigma_start;
 	int sigma_end;
 	int sigma_step;
-	
-	// BetaOne: suppression of blob-like structures.
-    float BetaOne;
-
-	// BetaTwo: background suppression. (See Frangi1998...)
-	float BetaTwo;
-
-	bool BlackWhite; //enhance black structures if true, otherwise enhance white structures
+    float BetaOne;      // correction constant: suppression of blob-like structures
+	float BetaTwo;      // correction constant: background suppression
+	bool BlackWhite;    // detection/ enhancement of black if true, otherwise white structures
 } frangi2d_opts_t;
 
 
@@ -29,9 +24,9 @@ typedef struct{
  *  Applys a full frangi filter to the source image using provided options
  *
  *  @param src              the source image
- *  @param vessel           result storage for vesselness
- *  @param scale            result storage for scale
- *  @param angle            result storage for vessel angle
+ *  @param vessel           the vessel enhanced image, values equal maximum for all scales
+ *  @param scale            scale on which maximum intensity of every pixel is found
+ *  @param angle            vessel angles (from minor eigenvector)
  *  @param opts             the options to use
  */
 void frangi2d(const cv::Mat& src, cv::Mat& vessel, cv::Mat& scale, cv::Mat& angle, frangi2d_opts_t opts);
@@ -42,11 +37,15 @@ void frangi2d(const cv::Mat& src, cv::Mat& vessel, cv::Mat& scale, cv::Mat& angl
 /**
  *  Runs a 2d hessian filter on the source image using sigma
  *
+ *                          | Dxx   Dxy |
+ *  Matrix looks like that: |           |
+ *                          | Dxy   Dyy |
+ *
  *  @param src              the source image
- *  @param Dxx              result storage
- *  @param Dxy              result storage
- *  @param Dyy              result storage
- *  @param sigma            yet unknown parameter
+ *  @param Dxx              second derivative
+ *  @param Dxy              second derivative
+ *  @param Dyy              second derivative
+ *  @param sigma            sigma of gaussian kernel used
  */
 void frangi2d_hessian(const cv::Mat& src, cv::Mat& Dxx, cv::Mat& Dxy, cv::Mat& Dyy, float sigma);
 
@@ -62,12 +61,16 @@ void frangi2d_createopts(frangi2d_opts_t* opts);
 /**
  *  Estimates eigenvalues from Dxx, Dxy, Dyy to the results lambda1, lambda2, Ix, Iy
  *
- *  @param Dxx              source for estimation
- *  @param Dxy              source for estimation
- *  @param Dyy              source for estimation
- *  @param lambda1          result storage
- *  @param lambda2          result storage
- *  @param Ix               result storage
- *  @param Iy               result storage
+ *                          | Dxx   Dxy |
+ *  Matrix looks like that: |           |
+ *                          | Dxy   Dyy |
+ *
+ *  @param Dxx              second derivative
+ *  @param Dxy              second derivative
+ *  @param Dyy              second derivative
+ *  @param lambda1          eigen value
+ *  @param lambda2          eigen value
+ *  @param Ix               direction of structure in x
+ *  @param Iy               direction of structure in y
  */
 void frangi2_eig2image(const cv::Mat& Dxx, const cv::Mat& Dxy, const cv::Mat& Dyy, cv::Mat& lambda1, cv::Mat& lambda2, cv::Mat& Ix, cv::Mat& Iy);
