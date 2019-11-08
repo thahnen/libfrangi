@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(libfrangi
+project(frangi
         VERSION         1.0.0
         DESCRIPTION     "Implementation of a standard vesselness filter"
         HOMEPAGE_URL    "https://github.com/thahnen/libfrangi"
@@ -17,12 +17,11 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 
 ########################################################################################################################
 #
-#       SHARED LIBRARY
+#       SHARED LIBRARY (using OpenMP for parallized working)
 #
 ########################################################################################################################
 add_library(${PROJECT_NAME}
         SHARED
-            include/frangi.h
             src/frangi.cpp)
 
 set_target_properties(${PROJECT_NAME}
@@ -39,12 +38,41 @@ target_link_libraries(${PROJECT_NAME}
         OpenMP::OpenMP_CXX
         ${OpenCV_LIBS})
 
+
+########################################################################################################################
+#
+#       SHARED LIBRARY (not using OpenMP)
+#
+########################################################################################################################
+add_library(frangiNP
+        SHARED
+            src/frangi.cpp)
+
+set_target_properties(frangiNP
+        PROPERTIES
+            VERSION ${PROJECT_VERSION}
+            CXX_VISIBILITY_PRESET hidden
+            PUBLIC_HEADER include/frangi.h)
+
+target_include_directories(frangiNP
+        PUBLIC
+            ${PROJECT_SOURCE_DIR}/include)
+
+target_link_libraries(frangiNP
+        ${OpenCV_LIBS})
+
+target_compile_definitions(frangiNP
+        PUBLIC
+            NO_OMP)
+
+
+
 #compile
-add_library(frangi SHARED src/frangi.cpp)
+#add_library(frangi SHARED src/frangi.cpp)
 add_executable(frangi-bin example/main.cpp)
 target_link_libraries(frangi-bin frangi opencv_core opencv_imgproc opencv_highgui)
 
 #install
-install (TARGETS frangi DESTINATION lib)
-install (TARGETS frangi-bin DESTINATION bin)
+#install (TARGETS frangi DESTINATION lib)
+#install (TARGETS frangi-bin DESTINATION bin)
 install (FILES include/frangi.h DESTINATION include)
