@@ -8,11 +8,11 @@
 
 
 /// Applys a full frangi filter to the source image using provided options
-void frangi2d(const cv::Mat& src, cv::Mat& maxVals, cv::Mat& whatScale, cv::Mat& outAngles, frangi2d_opts_t opts){
+void frangi2d(const cv::Mat& src, frangi2d_opts_t& opts, cv::Mat& maxVals, cv::Mat& whatScale, cv::Mat& outAngles){
     std::vector<cv::Mat> ALLfiltered;
     std::vector<cv::Mat> ALLangles;
-    float beta = 2*opts.BetaOne*opts.BetaOne;
-    float c = 2*opts.BetaTwo*opts.BetaTwo;
+    float beta =    2 * opts.BetaOne * opts.BetaOne;
+    float c =       2 * opts.BetaTwo * opts.BetaTwo;
 
     for (float sigma = opts.sigma_start; sigma <= opts.sigma_end; sigma += opts.sigma_step){
         //create 2D hessians
@@ -30,7 +30,7 @@ void frangi2d(const cv::Mat& src, cv::Mat& maxVals, cv::Mat& whatScale, cv::Mat&
 
         //compute direction of the minor eigenvector
         cv::Mat angles;
-        phase(Ix, Iy, angles);
+        cv::phase(Ix, Iy, angles);
         ALLangles.push_back(angles);
 
         //compute some similarity measures
@@ -41,8 +41,8 @@ void frangi2d(const cv::Mat& src, cv::Mat& maxVals, cv::Mat& whatScale, cv::Mat&
 
         //compute output image
         cv::Mat tmp1, tmp2;
-        exp(-Rb/beta, tmp1);
-        exp(-S2/c, tmp2);
+        cv::exp(-Rb/beta, tmp1);
+        cv::exp(-S2/c, tmp2);
 
         cv::Mat Ifiltered = tmp1.mul(cv::Mat::ones(src.rows, src.cols, src.type()) - tmp2);
         if (opts.BlackWhite){
@@ -81,7 +81,7 @@ void frangi2d_hessian(const cv::Mat& src, float sigma, cv::Mat& Dxx, cv::Mat& Dx
 
 #ifndef NO_OMP
 	// Parallel float array initialization
-    #pragma omp parallel sections default(none), private(kern_xx_f, kern_xy_f, kern_yy_f) shared(n_kern_x, n_kern_y)
+    #pragma omp parallel sections default(none), shared(kern_xx_f, kern_xy_f, kern_yy_f, n_kern_x, n_kern_y)
     {
         #pragma omp section
         {
@@ -105,6 +105,7 @@ void frangi2d_hessian(const cv::Mat& src, float sigma, cv::Mat& Dxx, cv::Mat& Dx
     kern_yy_f = new float[n_kern_x * n_kern_y]();
 #endif
 
+    // TODO: parallelize loop!
 	int i = 0;
 	int j = 0;
 	for (int x = -round(3*sigma); x <= round(3*sigma); x++){
@@ -117,31 +118,77 @@ void frangi2d_hessian(const cv::Mat& src, float sigma, cv::Mat& Dxx, cv::Mat& Dx
 		i++;
 	}
 
+    // TODO: parallelize loop!
 	for (int j=0; j < n_kern_y; j++){
 		for (int i=0; i < n_kern_x; i++){
 			kern_yy_f[j*n_kern_x + i] = kern_xx_f[i*n_kern_x + j];
 		}
 	}
 
-	//flip kernels since kernels aren't symmetric and opencv's filter2D operation performs a correlation, not a convolution
-    cv::Mat kern_xx;
-	flip(cv::Mat(n_kern_y, n_kern_x, CV_32FC1, kern_xx_f), kern_xx, -1);
 
-    cv::Mat kern_xy;
-	flip(cv::Mat(n_kern_y, n_kern_x, CV_32FC1, kern_xy_f), kern_xy, -1);
+	// 2) Flip kernels since kernels aren't symmetric and opencv's filter2D operation performs a correlation, not a convolution
+    cv::Mat kern_xx, kern_xy, kern_yy;
 
-    cv::Mat kern_yy;
-	flip(cv::Mat(n_kern_y, n_kern_x, CV_32FC1, kern_yy_f), kern_yy, -1);
+#ifndef NO_OMP
+    // Parallel kernel flipping
+    #pragma omp parallel sections default(none), shared(kern_xx, kern_xx_f, kern_xy, kern_xy_f, kern_yy, kern_yy_f, n_kern_x, n_kern_y)
+    {
+        #pragma omp section
+        {
+            cv::flip(cv::Mat(n_kern_y, n_kern_x, CV_32FC1, kern_xx_f), kern_xx, -1);
+	    }
 
-	//specify anchor since we are to perform a convolution, not a correlation
+        #pragma omp section
+        {
+            cv::flip(cv::Mat(n_kern_y, n_kern_x, CV_32FC1, kern_xy_f), kern_xy, -1);
+        }
+
+        #pragma omp section
+        {
+            cv::flip(cv::Mat(n_kern_y, n_kern_x, CV_32FC1, kern_yy_f), kern_yy, -1);
+        }
+	}
+#else
+    // Sequential kernel flipping
+    cv::flip(cv::Mat(n_kern_y, n_kern_x, CV_32FC1, kern_xx_f), kern_xx, -1);
+    cv::flip(cv::Mat(n_kern_y, n_kern_x, CV_32FC1, kern_xy_f), kern_xy, -1);
+    cv::flip(cv::Mat(n_kern_y, n_kern_x, CV_32FC1, kern_yy_f), kern_yy, -1);
+#endif
+
+
+	// 3) Specify anchor since we are to perform a convolution, not a correlation
     cv::Point anchor(n_kern_x - n_kern_x/2 - 1, n_kern_y - n_kern_y/2 - 1);
 
-	//run image filter
+
+	// 4) Run image filter
+#ifndef NO_OMP
+    // Parallel filtering on image
+    #pragma omp parallel sections default(none) shared(src, Dxx, Dxy, Dyy, kern_xx, kern_xy, kern_yy, anchor)
+    {
+        #pragma omp section
+        {
+            cv::filter2D(src, Dxx, -1, kern_xx, anchor);
+        }
+
+        #pragma omp section
+        {
+            cv::filter2D(src, Dxy, -1, kern_xy, anchor);
+        }
+
+        #pragma omp section
+        {
+            cv::filter2D(src, Dyy, -1, kern_yy, anchor);
+        }
+	}
+#else
+    // Sequential filtering on image
     cv::filter2D(src, Dxx, -1, kern_xx, anchor);
     cv::filter2D(src, Dxy, -1, kern_xy, anchor);
     cv::filter2D(src, Dyy, -1, kern_yy, anchor);
+#endif
 
 
+    // 5) Delete kernels
 	delete[] kern_xx_f;
 	delete[] kern_xy_f;
 	delete[] kern_yy_f;
@@ -172,8 +219,7 @@ void frangi2_eig2image(const cv::Mat& Dxx, const cv::Mat& Dxy, const cv::Mat& Dy
 
 #ifndef NO_OMP
         // Parallel matrix addition
-        // TODO: Handle tmp (should not be shared as the first section does not need it)!
-        #pragma omp parallel sections default(none) private(v2x, v2y) shared(Dxx, Dxy, Dyy, tmp)
+        #pragma omp parallel sections default(none) shared(v2x, v2y, Dxx, Dxy, Dyy, tmp)
         {
             #pragma omp section
             {
@@ -201,7 +247,7 @@ void frangi2_eig2image(const cv::Mat& Dxx, const cv::Mat& Dxy, const cv::Mat& Dy
 
 #ifndef NO_OMP
         // Parallel matrix multiplication/ copying
-        #pragma omp parallel sections default(none) private(v2x, v2y) shared(mag)
+        #pragma omp parallel sections default(none) shared(v2x, v2y, mag)
         {
             #pragma omp section
             {
@@ -238,7 +284,7 @@ void frangi2_eig2image(const cv::Mat& Dxx, const cv::Mat& Dxy, const cv::Mat& Dy
 
 #ifndef NO_OMP
     // Parallel matrix initialization
-    #pragma omp parallel sections default(none) private(mu1, mu2) shared(Dxx, Dxy, Dyy, tmp)
+    #pragma omp parallel sections default(none) shared(mu1, mu2, Dxx, Dxy, Dyy, tmp)
     {
         #pragma omp section
         {
@@ -257,11 +303,11 @@ void frangi2_eig2image(const cv::Mat& Dxx, const cv::Mat& Dxy, const cv::Mat& Dy
 
 
 	// 5) Sort eigenvalues by absolute value abs(Lambda1) < abs(Lamda2)
-    cv::Mat check = abs(mu1) > abs(mu2);
+    const cv::Mat check = cv::abs(mu1) > cv::abs(mu2);
 
 #ifndef NO_OMP
     // Parallel matrix copying
-    #pragma omp parallel sections default(none) private(mu1, mu2, lambda1, lambda2, v1x, v2x, Ix, v1y, v2y, Iy) shared(check)
+    #pragma omp parallel sections default(none) private(lambda1, lambda2, Ix, Iy) shared(mu1, mu2, v1x, v2x, v1y, v2y)
     {
         // lambda1 (output) section
         #pragma omp section

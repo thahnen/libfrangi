@@ -4,9 +4,12 @@
 #include <cstring>
 #include <cstdlib>
 #include <vector>
+
 #include "../include/frangi.h"
+
 using namespace std;
 using namespace cv;
+
 
 void showHelp(){
 	cerr << "Usage: frangi-bin [OPTION]... [FILE]" << endl
@@ -20,7 +23,9 @@ void showHelp(){
 		<< "--output=FILE\t\t\t\t\t Specify output file. Defaults to [input file]_frangi.png." << endl
 		<< "--help\t\t\t\t\t\t Show help." << endl;
 }
-void createOptions(option **options){
+
+
+void createOptions(option** options){
 	int numOptions = 9;
 	*options = new option[numOptions];
 
@@ -71,61 +76,65 @@ void createOptions(option **options){
 
 }
 
-int main(int argc, char *argv[]){
+
+int main(int argc, char* argv[]){
 	//set default frangi opts
 	frangi2d_opts_t opts;
-	frangi2d_createopts(&opts);
+	frangi2d_createopts(opts);
 
 	//process command line options
 	int index;
 	char shortopts[] = "";
-	option *longopts;
+	option* longopts;
 	createOptions(&longopts);
 
 	string outFilename;
 	bool outFilenameSet = false;
 
-	while (true){
-		int flag = getopt_long(argc, argv, shortopts, longopts, &index);	
-		switch (flag){
-			case 0: //sigma_start 
-				opts.sigma_start = strtod(optarg, NULL);
+	while (true) {
+		int flag = getopt_long(argc, argv, shortopts, longopts, &index);
+        if (flag == -1){
+            break;
+        }
+
+		switch (flag) {
+        case 0: //sigma_start
+            opts.sigma_start = strtod(optarg, NULL);
 			break;
 
-			case 1: //sigma_end
-				opts.sigma_end = strtod(optarg, NULL);
+        case 1: //sigma_end
+            opts.sigma_end = strtod(optarg, NULL);
 			break;
 			
-			case 2: //sigma_step
-				opts.sigma_step = strtod(optarg, NULL);
+        case 2: //sigma_step
+            opts.sigma_step = strtod(optarg, NULL);
 			break;
 
-			case 3: //BetaOne (blob suppression)
-				opts.BetaOne = strtod(optarg, NULL);
+        case 3: //BetaOne (blob suppression)
+            opts.BetaOne = strtod(optarg, NULL);
 			break;
 
-			case 4: //BetaTwo (background suppression)
-				opts.BetaTwo = strtod(optarg, NULL);
+        case 4: //BetaTwo (background suppression)
+            opts.BetaTwo = strtod(optarg, NULL);
 			break;
-			case 5:
-				showHelp();
-				exit(0);
+
+        case 5:
+            showHelp();
+            exit(0);
+
+        case 6:
+            outFilename = string(optarg);
+            outFilenameSet = true;
 			break;
-			case 6:
-				outFilename = string(optarg);
-				outFilenameSet = true;
-			break;
-			case 7:
-				opts.BlackWhite = false;
-			break;
-		}
-		if (flag == -1){
+
+        case 7:
+            opts.BlackWhite = false;
 			break;
 		}
 	}
 
 	//filenames
-	char *filename = argv[optind];
+	char* filename = argv[optind];
 	if (filename == NULL){
 		cerr << "Missing filename!" << endl;
 		exit(1);
@@ -134,13 +143,14 @@ int main(int argc, char *argv[]){
 	if (!outFilenameSet){
 		outFilename = string(filename) + "_frangi";
 	}
-	delete [] longopts;
+
+	delete[] longopts;
 	
 	//read image file, run frangi, output to output file
 	Mat input_img = imread(filename, CV_LOAD_IMAGE_GRAYSCALE);
 	Mat input_img_fl;
 	input_img.convertTo(input_img_fl, CV_32FC1);
 	Mat vesselness, scale, angles;
-	frangi2d(input_img_fl, vesselness, scale, angles, opts);
+	frangi2d(input_img_fl, opts, vesselness, scale, angles);
 	imwrite(outFilename + ".png", vesselness*255);
 }

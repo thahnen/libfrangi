@@ -9,7 +9,7 @@
 
 
 /// Frangi filter options
-typedef struct{
+typedef struct {
 	// vessel scales
 	int sigma_start;
 	int sigma_end;
@@ -29,7 +29,7 @@ typedef struct{
  *  @param scale            scale on which maximum intensity of every pixel is found
  *  @param angle            vessel angles (from minor eigenvector)
  */
-void frangi2d(const cv::Mat& src, frangi2d_opts_t opts, cv::Mat& vessel, cv::Mat& scale, cv::Mat& angle);
+void frangi2d(const cv::Mat& src, frangi2d_opts_t& opts, cv::Mat& vessel, cv::Mat& scale, cv::Mat& angle);
 
 
 /// Helper functions from here!

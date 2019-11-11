@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.14)
 project(frangi
-        VERSION         1.0.0
+        VERSION         1.5.0
         DESCRIPTION     "Implementation of a standard vesselness filter"
         HOMEPAGE_URL    "https://github.com/thahnen/libfrangi"
         LANGUAGES       CXX)
