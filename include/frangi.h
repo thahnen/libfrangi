@@ -1,11 +1,22 @@
+#pragma once
+#ifndef FRANGI_FRANGI_H
+#define FRANGI_FRANGI_H
+
+#if defined (__GNUC__) && !defined (_WIN32)
+#   define DLL __attribute__ ((visibility("default")))
+#else
+#	error "No suitable Compiler (GCC) found or using windows!"
+#endif
+
 #include <opencv2/opencv.hpp>
 
+
 #define DEFAULT_SIGMA_START 3
-#define DEFAULT_SIGMA_END 7
-#define DEFAULT_SIGMA_STEP 1
-#define DEFAULT_BETA_ONE 1.6
-#define DEFAULT_BETA_TWO 0.08
-#define DEFAULT_BLACKWHITE true
+#define DEFAULT_SIGMA_END   7
+#define DEFAULT_SIGMA_STEP  1
+#define DEFAULT_BETA_ONE    1.6
+#define DEFAULT_BETA_TWO    0.08
+#define DEFAULT_BLACKWHITE  true
 
 
 /// Frangi filter options
@@ -29,7 +40,7 @@ typedef struct {
  *  @param scale            scale on which maximum intensity of every pixel is found
  *  @param angle            vessel angles (from minor eigenvector)
  */
-void frangi2d(const cv::Mat& src, frangi2d_opts_t& opts, cv::Mat& vessel, cv::Mat& scale, cv::Mat& angle);
+DLL void frangi2d(const cv::Mat& src, frangi2d_opts_t& opts, cv::Mat& vessel, cv::Mat& scale, cv::Mat& angle);
 
 
 /// Helper functions from here!
@@ -47,7 +58,7 @@ void frangi2d(const cv::Mat& src, frangi2d_opts_t& opts, cv::Mat& vessel, cv::Ma
  *  @param Dxy              second derivative (output)
  *  @param Dyy              second derivative (output)
  */
-void frangi2d_hessian(const cv::Mat& src, float sigma, cv::Mat& Dxx, cv::Mat& Dxy, cv::Mat& Dyy);
+DLL void frangi2d_hessian(const cv::Mat& src, float sigma, cv::Mat& Dxx, cv::Mat& Dxy, cv::Mat& Dyy);
 
 
 /**
@@ -55,7 +66,7 @@ void frangi2d_hessian(const cv::Mat& src, float sigma, cv::Mat& Dxx, cv::Mat& Dx
  *
  *  @param opts             reference to existing options
  */
-void frangi2d_createopts(frangi2d_opts_t& opts);
+DLL void frangi2d_createopts(frangi2d_opts_t& opts);
 
 
 /**
@@ -73,5 +84,8 @@ void frangi2d_createopts(frangi2d_opts_t& opts);
  *  @param Ix               x direction of structure
  *  @param Iy               y direction of structure
  */
-void frangi2_eig2image(const cv::Mat& Dxx, const cv::Mat& Dxy, const cv::Mat& Dyy, cv::Mat& lambda1, cv::Mat& lambda2,
-                        cv::Mat& Ix, cv::Mat& Iy);
+DLL void frangi2_eig2image(const cv::Mat& Dxx, const cv::Mat& Dxy, const cv::Mat& Dyy, cv::Mat& lambda1,
+							cv::Mat& lambda2, cv::Mat& Ix, cv::Mat& Iy);
+
+
+#endif //FRANGI_FRANGI_H

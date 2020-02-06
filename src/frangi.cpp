@@ -8,9 +8,10 @@
 
 
 /// Applys a full frangi filter to the source image using provided options
-void frangi2d(const cv::Mat& src, frangi2d_opts_t& opts, cv::Mat& maxVals, cv::Mat& whatScale, cv::Mat& outAngles){
+void frangi2d(const cv::Mat& src, frangi2d_opts_t& opts, cv::Mat& vessel, cv::Mat& scale, cv::Mat& angle){
     std::vector<cv::Mat> ALLfiltered;
     std::vector<cv::Mat> ALLangles;
+
     float beta =    2 * opts.BetaOne * opts.BetaOne;
     float c =       2 * opts.BetaTwo * opts.BetaTwo;
 
@@ -20,9 +21,9 @@ void frangi2d(const cv::Mat& src, frangi2d_opts_t& opts, cv::Mat& maxVals, cv::M
         frangi2d_hessian(src, sigma, Dxx, Dxy, Dyy);
 
         //correct for scale
-        Dxx = Dxx*sigma*sigma;
-        Dyy = Dyy*sigma*sigma;
-        Dxy = Dxy*sigma*sigma;
+        Dxx = Dxx * sigma * sigma;
+        Dyy = Dyy * sigma * sigma;
+        Dxy = Dxy * sigma * sigma;
 
         //calculate (abs sorted) eigenvalues and vectors
         cv::Mat lambda1, lambda2, Ix, Iy;
@@ -56,72 +57,48 @@ void frangi2d(const cv::Mat& src, frangi2d_opts_t& opts, cv::Mat& maxVals, cv::M
     }
 
     float sigma = opts.sigma_start;
-    ALLfiltered[0].copyTo(maxVals);
-    ALLfiltered[0].copyTo(whatScale);
-    ALLfiltered[0].copyTo(outAngles);
-    whatScale.setTo(sigma);
+    ALLfiltered[0].copyTo(vessel);
+    ALLfiltered[0].copyTo(scale);
+    ALLfiltered[0].copyTo(angle);
+    scale.setTo(sigma);
 
     //find element-wise maximum across all accumulated filter results
     for (int i=1; i < ALLfiltered.size(); i++){
-        maxVals = max(maxVals, ALLfiltered[i]);
-        whatScale.setTo(sigma, ALLfiltered[i] == maxVals);
-        ALLangles[i].copyTo(outAngles, ALLfiltered[i] == maxVals);
+        vessel = max(vessel, ALLfiltered[i]);
+        scale.setTo(sigma, ALLfiltered[i] == vessel);
+        ALLangles[i].copyTo(angle, ALLfiltered[i] == vessel);
         sigma += opts.sigma_step;
     }
 }
 
 
-/// Runs a 2d hessian filter on the source image using sigma
+/// Runs a 2d hessian filter on the source image using given sigma
 void frangi2d_hessian(const cv::Mat& src, float sigma, cv::Mat& Dxx, cv::Mat& Dxy, cv::Mat& Dyy){
 	// 1) Construct Hessian kernels
-	int n_kern_x = 2*round(3*sigma) + 1;
+	int n_kern_x = 2 * round(3 * sigma) + 1;
 	int n_kern_y = n_kern_x;
 
-	float* kern_xx_f, *kern_xy_f, *kern_yy_f;
-
-#ifndef NO_OMP
-	// Parallel float array initialization
-    #pragma omp parallel sections default(none), shared(kern_xx_f, kern_xy_f, kern_yy_f, n_kern_x, n_kern_y)
-    {
-        #pragma omp section
-        {
-            kern_xx_f = new float[n_kern_x * n_kern_y]();
-        }
-
-        #pragma omp section
-        {
-            kern_xy_f = new float[n_kern_x * n_kern_y]();
-        }
-
-        #pragma omp section
-        {
-            kern_yy_f = new float[n_kern_x * n_kern_y]();
-        }
-    }
-#else
-    // Seqential float array initialization
-    kern_xx_f = new float[n_kern_x * n_kern_y]();
-    kern_xy_f = new float[n_kern_x * n_kern_y]();
-    kern_yy_f = new float[n_kern_x * n_kern_y]();
-#endif
+    // Float array initialization
+    float* kern_xx_f = new float[n_kern_x * n_kern_y]();
+    float* kern_xy_f = new float[n_kern_x * n_kern_y]();
+    float* kern_yy_f = new float[n_kern_x * n_kern_y]();
 
     // TODO: parallelize loop!
 	int i = 0;
 	int j = 0;
-	for (int x = -round(3*sigma); x <= round(3*sigma); x++){
-		j=0;
+	for (int x = -round(3*sigma); x <= round(3*sigma); x++, j = 0){
 		for (int y = -round(3*sigma); y <= round(3*sigma); y++){
-			kern_xx_f[i*n_kern_y + j] = 1.0f/(2.0f*M_PI*sigma*sigma*sigma*sigma) * (x*x/(sigma*sigma) - 1) * exp(-(x*x + y*y)/(2.0f*sigma*sigma));
-			kern_xy_f[i*n_kern_y + j] = 1.0f/(2.0f*M_PI*sigma*sigma*sigma*sigma*sigma*sigma)*(x*y)*exp(-(x*x + y*y)/(2.0f*sigma*sigma));
+			kern_xx_f[i * n_kern_y + j] = 1.0f / (2.0f * M_PI * sigma * sigma * sigma * sigma) * (x*x / (sigma * sigma) - 1) * exp(-(x*x + y*y)/(2.0f*sigma*sigma));
+			kern_xy_f[i * n_kern_y + j] = 1.0f / (2.0f * M_PI * sigma * sigma * sigma * sigma * sigma * sigma) * (x*y) * exp(-(x*x + y*y)/(2.0f*sigma*sigma));
 			j++;
 		}
 		i++;
 	}
 
     // TODO: parallelize loop!
-	for (int j=0; j < n_kern_y; j++){
-		for (int i=0; i < n_kern_x; i++){
-			kern_yy_f[j*n_kern_x + i] = kern_xx_f[i*n_kern_x + j];
+	for (int j = 0; j < n_kern_y; j++){
+		for (int i = 0; i < n_kern_x; i++){
+			kern_yy_f[j * n_kern_x + i] = kern_xx_f[i * n_kern_x + j];
 		}
 	}
 
@@ -156,11 +133,9 @@ void frangi2d_hessian(const cv::Mat& src, float sigma, cv::Mat& Dxx, cv::Mat& Dx
 #endif
 
 
-	// 3) Specify anchor since we are to perform a convolution, not a correlation
+	// 3) Run image filter using anchor since we are to perform a convolution, not a correlation
     cv::Point anchor(n_kern_x - n_kern_x/2 - 1, n_kern_y - n_kern_y/2 - 1);
 
-
-	// 4) Run image filter
 #ifndef NO_OMP
     // Parallel filtering on image
     #pragma omp parallel sections default(none) shared(src, Dxx, Dxy, Dyy, kern_xx, kern_xy, kern_yy, anchor)
@@ -188,7 +163,7 @@ void frangi2d_hessian(const cv::Mat& src, float sigma, cv::Mat& Dxx, cv::Mat& Dx
 #endif
 
 
-    // 5) Delete kernels
+    // 4) Delete kernels
 	delete[] kern_xx_f;
 	delete[] kern_xy_f;
 	delete[] kern_yy_f;
@@ -197,13 +172,12 @@ void frangi2d_hessian(const cv::Mat& src, float sigma, cv::Mat& Dxx, cv::Mat& Dx
 
 /// Sets given options to the default values
 void frangi2d_createopts(frangi2d_opts_t& opts){
-	//these parameters depend on the scale of the vessel, depending ultimately on the image size...
-	opts.sigma_start =  DEFAULT_SIGMA_START;
-	opts.sigma_end =    DEFAULT_SIGMA_END;
-	opts.sigma_step =   DEFAULT_SIGMA_STEP;
-	opts.BetaOne =      DEFAULT_BETA_ONE;       // ignore blob-like structures?
-	opts.BetaTwo =      DEFAULT_BETA_TWO;       // appropriate background suppression for this specific image, but can change.
-	opts.BlackWhite =   DEFAULT_BLACKWHITE;
+	opts.sigma_start    = DEFAULT_SIGMA_START;
+	opts.sigma_end      = DEFAULT_SIGMA_END;
+	opts.sigma_step     = DEFAULT_SIGMA_STEP;
+	opts.BetaOne        = DEFAULT_BETA_ONE;     // ignore blob-like structures?
+	opts.BetaTwo        = DEFAULT_BETA_TWO;     // appropriate background suppression for this specific image, but can change.
+	opts.BlackWhite     = DEFAULT_BLACKWHITE;
 }
 
 
@@ -217,25 +191,9 @@ void frangi2_eig2image(const cv::Mat& Dxx, const cv::Mat& Dxy, const cv::Mat& Dy
         cv::Mat tmp2 = Dxx - Dyy;
         cv::sqrt(tmp2.mul(tmp2) + 4*Dxy.mul(Dxy), tmp);
 
-#ifndef NO_OMP
-        // Parallel matrix addition
-        #pragma omp parallel sections default(none) shared(v2x, v2y, Dxx, Dxy, Dyy, tmp)
-        {
-            #pragma omp section
-            {
-                v2x = 2*Dxy;
-            }
-
-            #pragma omp section
-            {
-                v2y = Dyy - Dxx + tmp;
-            }
-        }
-#else
         // Sequential matrix addition
         v2x = 2*Dxy;
         v2y = Dyy - Dxx + tmp;
-#endif
     }
 
 
@@ -275,31 +233,12 @@ void frangi2_eig2image(const cv::Mat& Dxx, const cv::Mat& Dxy, const cv::Mat& Dy
 	// 3) Eigenvectors are orthogonal
     cv::Mat v1x, v1y;
 	v2y.copyTo(v1x);
-	v1x = -1*v1x;
+	v1x = -1 * v1x;
 	v2x.copyTo(v1y);
 
-
 	// 4) Compute eigenvalues
-    cv::Mat mu1, mu2;
-
-#ifndef NO_OMP
-    // Parallel matrix initialization
-    #pragma omp parallel sections default(none) shared(mu1, mu2, Dxx, Dxy, Dyy, tmp)
-    {
-        #pragma omp section
-        {
-            mu1 = 0.5*(Dxx + Dyy + tmp);
-        }
-
-        #pragma omp section
-        {
-            mu2 = 0.5*(Dxx + Dyy - tmp);
-        }
-    }
-#else
-    mu1 = 0.5*(Dxx + Dyy + tmp);
-    mu2 = 0.5*(Dxx + Dyy - tmp);
-#endif
+    cv::Mat mu1 = 0.5*(Dxx + Dyy + tmp);
+    cv::Mat mu2 = 0.5*(Dxx + Dyy - tmp);
 
 
 	// 5) Sort eigenvalues by absolute value abs(Lambda1) < abs(Lamda2)

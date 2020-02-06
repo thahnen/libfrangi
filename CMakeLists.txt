@@ -1,23 +1,27 @@
 cmake_minimum_required(VERSION 3.14)
 project(frangi
-        VERSION         1.5.0
+        VERSION         1.5.5
         DESCRIPTION     "Implementation of a standard vesselness filter"
         HOMEPAGE_URL    "https://github.com/thahnen/libfrangi"
         LANGUAGES       CXX)
 
+set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_BUILD_TYPE Release)
 
-# OpenMP required for parallized working
+
+# OpenMP required for parallelized working
 find_package(OpenMP REQUIRED)
+
 # OpenCV required for image processing
 find_package(OpenCV REQUIRED)
+
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
 
 ########################################################################################################################
 #
-#       SHARED LIBRARY (using OpenMP for parallized working)
+#       SHARED LIBRARY (using OpenMP for parallelization)
 #
 ########################################################################################################################
 add_library(${PROJECT_NAME}
@@ -66,13 +70,34 @@ target_compile_definitions(frangiNP
             NO_OMP)
 
 
+########################################################################################################################
+#       AFTER LIBRARIES ARE BUILD FIND THEM!
+########################################################################################################################
+find_library(frangi REQUIRED)
+find_library(frangiNP REQUIRED)
 
-#compile
-#add_library(frangi SHARED src/frangi.cpp)
-add_executable(frangi-bin example/main.cpp)
-target_link_libraries(frangi-bin frangi opencv_core opencv_imgproc opencv_highgui)
+
+########################################################################################################################
+#
+#       BUILD OPTIONS FOR BENCHMARKING:
+#       => compares the libraries with and without OpenMP
+#
+########################################################################################################################
+add_executable(frangi_test_with
+        example/main.cpp)
+
+target_link_libraries(frangi_test_with
+        PUBLIC
+            frangi)
+
+add_executable(frangi_test_without
+        example/main.cpp)
+
+target_link_libraries(frangi_test_without
+        PUBLIC
+            frangiNP)
+
 
 #install
 #install (TARGETS frangi DESTINATION lib)
-#install (TARGETS frangi-bin DESTINATION bin)
-install (FILES include/frangi.h DESTINATION include)
+#install (FILES include/frangi.h DESTINATION include)
