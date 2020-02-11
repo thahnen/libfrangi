@@ -22,20 +22,16 @@ int main(int argc, char* argv[]){
         frangi2d_createopts(opts);
 
         // Read image from file
-        cv::Mat input = cv::imread(path);
+        cv::Mat input = cv::imread(path, cv::IMREAD_GRAYSCALE);
         if (!input.data) {
             std::cerr << "Image not found or could not be loaded: " << path << std::endl;
             return 1;
         }
 
-        // Convert to color if image is grayscale!
-        if (input.channels() == 1) {
-            cv::cvtColor(input, input, cv::COLOR_GRAY2BGR);
-        }
-
         // Run frangi on given (now colered) image
-        cv::Mat vesselness, scale, angles;
-        frangi2d(input, opts, vesselness, scale, angles);
+        cv::Mat working, vesselness, scale, angles;
+        input.convertTo(working, CV_32FC3);
+        frangi2d(working, opts, vesselness, scale, angles);
 
         // Save output image to file!
         imwrite(path + ".out", vesselness * 255);
